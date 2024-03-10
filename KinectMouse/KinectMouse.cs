@@ -136,23 +136,23 @@ namespace KinectMouse
 			}
 			return isLasso;
 		}
-		private void IndicateState(bool active, Queue<Joint> buffer, Control panel)
+		private void IndicateState(bool active, Queue<Joint> handBuffer, Control panel, Color defaultActiveColor, Color defaultReadyColor)
 		{
 			if (active)
 			{
-				panel.BackColor = Color.DarkGreen;
+				panel.BackColor = defaultActiveColor;
 			}
 			else
 			{
-				if (buffer.Count <= 0 || buffer.Last().TrackingState == TrackingState.NotTracked || buffer.Last().TrackingState == TrackingState.Inferred)
+				if (handBuffer.Count <= 0 || handBuffer.Last().TrackingState == TrackingState.NotTracked || handBuffer.Last().TrackingState == TrackingState.Inferred)
 				{
 					panel.BackColor = Color.Red;
 				}
 				else
 				{
-					if (IsCloserToHead(headBuffer.Last(), pelvisBuffer.Last(), buffer.Last()))
+					if (IsCloserToHead(headBuffer.Last(), pelvisBuffer.Last(), handBuffer.Last()))
 					{
-						panel.BackColor = Color.LightGreen;
+						panel.BackColor = defaultReadyColor;
 					}
 					else
 					{
@@ -160,43 +160,14 @@ namespace KinectMouse
 					}
 				}
 			}
-        }
-        private void IndicateClickingState(bool active, Queue<Joint> buffer, HandState state, Control panel)
-        {
-            if (active)
-            {
-                panel.BackColor = Color.DarkBlue;
-            }
-            else
-            {
-                if (buffer.Count <= 0 || buffer.Last().TrackingState == TrackingState.NotTracked || buffer.Last().TrackingState == TrackingState.Inferred)
-                {
-                    panel.BackColor = Color.Red;
-                }
-                else
-                {
-                    if (IsCloserToHead(headBuffer.Last(), pelvisBuffer.Last(), buffer.Last()))
-                    {
-                        panel.BackColor = Color.LightGreen;
-                    }
-                    else if (state == HandState.Lasso)
-                    {
-                        panel.BackColor = Color.LightBlue;
-                    }
-                    else
-                    {
-                        panel.BackColor = Color.Pink;
-                    }
-                }
-            }
-        }
+		}
 
-        private void MovingHand(Queue<Joint> buffer, Queue<TrackingConfidence> confidence, Queue<HandState> state, Control panel)
+		private void MovingHand(Queue<Joint> handBuffer, Queue<TrackingConfidence> confidence, Queue<HandState> state, Control panel)
 		{
-			if (TestHandClosed(ref isMoving, buffer, confidence, state) && buffer.Count >= 2)
+			if (TestHandClosed(ref isMoving, handBuffer, confidence, state) && handBuffer.Count >= 2)
 			{
-				var CurrentPos = buffer.Last().Position;
-				var PreviousPos = buffer.Reverse().Skip(1).First().Position;
+				var CurrentPos = handBuffer.Last().Position;
+				var PreviousPos = handBuffer.Reverse().Skip(1).First().Position;
 				float X = CurrentPos.X - PreviousPos.X;
 				float Y = CurrentPos.Y - PreviousPos.Y;
 				var Resolution = Screen.FromControl(this).Bounds;
@@ -204,31 +175,35 @@ namespace KinectMouse
 				float Height = Resolution.Height;
 				mouse_move((int)(X * Width * sensitivityX), (int)(Y * -Height * sensitivityY));
 			}
-			IndicateState(isMoving, buffer, panel);
+			IndicateState(isMoving, handBuffer, panel, Color.DarkGreen, Color.LightGreen);
 		}
-		private void ClickingHand(Queue<Joint> buffer, Queue<TrackingConfidence> confidence, Queue<HandState> state, Control panel)
+		private void ClickingHand(Queue<Joint> handBuffer, Queue<TrackingConfidence> confidence, Queue<HandState> state, Control panel)
 		{
-			TestHandClosed(ref isDown, buffer, confidence, state);
-			TestHandLasso(ref isLasso, buffer, confidence, state);
+			TestHandClosed(ref isDown, handBuffer, confidence, state);
+			TestHandLasso(ref isLasso, handBuffer, confidence, state);
 			if (isDown)
 			{
 				mouse_down(true);
-                IndicateState(isDown, buffer, panel);
-            }
+				IndicateState(isDown, handBuffer, panel, Color.DarkGreen, Color.LightGreen);
+			}
 			else if (isLasso)
 			{
 				mouse_down(false);
-                IndicateClickingState(isLasso, buffer, state.Last(), panel);
-            }
+				IndicateState(isLasso, handBuffer, panel, Color.DarkBlue, Color.LightBlue);
+			}
 			else
 			{
 				mouse_up(true);
 				mouse_up(false);
-                IndicateState(isDown, buffer, panel);
-            }
+				if (state.LastOrDefault() == HandState.Lasso)
+				{
+					IndicateState(isLasso, handBuffer, panel, Color.DarkBlue, Color.LightBlue);
+				}
+				else IndicateState(isDown, handBuffer, panel, Color.DarkGreen, Color.LightGreen);
+			}
 		}
 
-        private void Reader_FrameArrived(object sender, BodyFrameArrivedEventArgs e)
+		private void Reader_FrameArrived(object sender, BodyFrameArrivedEventArgs e)
 		{
 			using (BodyFrame frame = e.FrameReference.AcquireFrame())
 			{
@@ -331,13 +306,13 @@ namespace KinectMouse
 			if (left && leftDown)
 			{
 				mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, GetMessageExtraInfo());
-                leftDown = false;
-            }
+				leftDown = false;
+			}
 			if (!left && rightDown)
 			{
 				mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
-                rightDown = false;
-            }
+				rightDown = false;
+			}
 		}
 		private void mouse_move(int X, int Y)
 		{
